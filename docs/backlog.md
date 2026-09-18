@@ -89,8 +89,24 @@ most elegant possible plan.
   reportable finding, not a silent pass"). I have not modified the features, the
   model, the split or any threshold in response.
 - **Status:** open — reported at Gate 2, awaiting planner decision. Default if
-  the planner does not act: carry the 7/12 into the write-up as a measured
+  the planner does not act: carry the result into the write-up as a measured
   limitation.
+- **UPDATE (deferred-AC re-run):** the re-run scores **8/12, not 7/12**. Exactly
+  one file changed verdict: `Train267.csv` (Side II) went FAIL -> PASS; the
+  other eleven are identical. **This is not run-to-run instability** — the model
+  is deterministic under the fixed seed. The cause is the feature set:
+  `model_matrix_columns()` reads `artifacts/rail/speed_correlated_features.json`
+  at call time, and that file **did not exist** when Gate 2 ran AC-13 (it was
+  written later, during the Gate 3 leak ruling). So Gate 2's AC-13 used the
+  pre-gate **1,104** features and the re-run uses the post-gate **982**.
+  Verified: `model_matrix_columns()` today returns 982, with zero
+  `domwavelength` and zero speed-gated columns surviving.
+  **Reading:** removing 122 speed-correlated features moved one borderline
+  mirrored prediction across a decision boundary. It does not change the
+  diagnosis — the extractor remains exactly antisymmetric (0 violations) and the
+  asymmetry remains in the fitted classifier. Quote **8/12** as the current
+  figure and note that the Gate 2 raw file records 7/12 against the older,
+  wider feature set. Both raw files are retained.
 
 ### ROOT CAUSE: dimensional correctness does not imply statistical independence
 - **Noticed by / when:** coordinator verification, post-Gate-2; user ruled immediately

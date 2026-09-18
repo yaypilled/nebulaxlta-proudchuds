@@ -1,9 +1,7 @@
 # NebulaX PS3 — Rail Corrugation. Python 3.13.14, Windows.
-# Pinned from pip freeze after resolving: numpy pandas scipy scikit-learn
-# matplotlib joblib pytest, plus pyarrow (Parquet feature cache, plan 5.4).
-# All installed as wheels; no source builds.
+# Pinned from pip freeze. All wheels; no source builds.
+# pyarrow: Parquet feature cache (plan 5.4). psutil: AC-5 memory measurement.
 # Deliberately absent: streamlit, torch, tensorflow, xgboost, lightgbm.
-# xgboost/lightgbm are a modelling decision for the planner, not bootstrap.
 
 cloudpickle==3.1.2
 colorama==0.4.6
@@ -20,6 +18,7 @@ packaging==26.3
 pandas==3.0.6
 pillow==12.3.0
 pluggy==1.6.0
+psutil==7.2.2
 pyarrow==25.0.1
 Pygments==2.21.0
 pyparsing==3.3.2

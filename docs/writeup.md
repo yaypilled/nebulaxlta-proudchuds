@@ -106,6 +106,15 @@ exactly in a log-ratio. We verified the extractor is *exactly* side-symmetric:
 swapping the channel groups negates every difference feature and leaves every
 symmetric feature untouched, with zero violations across 600 checks.
 
+The *fitted model* does not inherit that symmetry: mirroring a fault file's
+channels flips its prediction to the opposite side on only 8 of 12 test cases.
+With 14 Side I against 24 Side II examples, the classifier learns side-specific
+coefficients, so a mirrored fault vector falls outside the region it was fitted
+on. We report this rather than enforce symmetry by augmentation, because the
+fix is a modelling change and the honest reading is that it is a symptom of the
+sample size. The property the design actually claims — that the *features* are
+side-symmetric — holds exactly.
+
 Classifier: logistic regression with balanced class weights, every transformer
 fitted inside the training fold only. Validation is
 `RepeatedStratifiedKFold(5 folds × 10 repeats, seed 20260918)` — 50 folds, so
