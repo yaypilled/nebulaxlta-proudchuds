@@ -5,6 +5,27 @@ folds. We used **zero of our five leaderboard uploads**. Every number below
 comes from local validation, which means the validation itself had to be
 trustworthy — that is what most of this write-up is about.
 
+## In sixty seconds
+
+- **The data contains a trap.** No fault file was recorded below 9.70 m/s,
+  while 133 of 234 Normal files were. A model could score 0.509 on speed alone
+  and learn nothing about corrugation.
+- **So we report the harder number.** Macro F1 restricted to files above that
+  speed, where every class spans the same range and the shortcut is unavailable
+  by construction. It is the lower of our two figures, and it is the one we
+  quote.
+- **A speed-only baseline collapses from 0.3996 to 0.3078 under that
+  restriction**, confirming the restricted domain does what we claim.
+- **We found two leaks by measuring, not reviewing.** Both families of features
+  were dimensionally correct and both smuggled speed back in; one correlated
+  with speed at 0.998. We dropped 122 features and added an empirical gate.
+- **We found two byte-identical duplicate file pairs** in the training data, and
+  ruled out the block-structure risk we were most worried about.
+- **Honest limits:** 14 Side I examples, per-fold scores ranging 0.575–0.946,
+  and a correlation threshold we chose pragmatically rather than derived.
+
+The rest of this document is the evidence for those six claims.
+
 ---
 
 ## The task
