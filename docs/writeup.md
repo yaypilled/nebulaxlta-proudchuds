@@ -231,6 +231,35 @@ restricted validation fold.
 
 ---
 
+## We tried to beat it and could not
+
+After freezing the result we ran a model search, pre-registered in
+`docs/search-plan.md` **before** any configuration was scored: eight
+configurations spanning three regularisation strengths, L1 and L2, a linear
+SVM, ridge, random forest and extra trees.
+
+It used **nested cross-validation**: configurations compete inside inner folds
+carved from the training portion, and the winner is evaluated once on the
+untouched outer fold. What that estimates is the whole selection procedure, not
+the luckiest configuration.
+
+**The nested estimate came out at 0.7558 — below the incumbent's 0.7765.** No
+challenger passed the three-condition paired test; the closest, stronger L2
+regularisation, won on only 8 of 50 folds. Random forest was worst at 0.6774
+and was never once chosen by inner selection, which is what 38 fault examples
+in 982 dimensions predicts.
+
+The comparison worth noting: the best *per-configuration* outer mean was
+0.7773, marginally above the incumbent. Quoting that as an improvement would
+mean selecting a configuration on the same folds used to measure it. The nested
+estimate, which does not do that, lands lower than both — and that gap is
+roughly the size of the bias such a search introduces.
+
+So the incumbent stands and the frozen artefacts were never rewritten. We
+report this because a null result is evidence: the model we shipped is not a
+lucky draw from a wide search, and we have the full log of every configuration
+that lost.
+
 ## What we would not want overlooked
 
 **Side I is the weak class and the honest number is 0.565.** With 14 examples,
