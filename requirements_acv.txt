@@ -1,0 +1,16 @@
+# Core data processing
+pandas
+numpy
+openpyxl
+
+# Visualisation
+matplotlib
+plotly
+
+# Machine learning
+scikit-learn
+xgboost
+joblib
+
+# App / interface
+streamlit
