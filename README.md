@@ -3,7 +3,7 @@
 **Shipped model: ridge regression on physics-derived features.**
 **Expected leaderboard score `0.994` (80% interval 0.992 – 0.997).**
 
-A forecast, not a result — the organisers hold the test labels. Estimated by
+A forecast, not a result. Estimated by
 grouped cross-validation and by 100 simulated 48/16 submissions in which the whole
 model is re-derived from 48 files and scored on 16 it never saw.
 
