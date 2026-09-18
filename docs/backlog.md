@@ -146,3 +146,21 @@ most elegant possible plan.
   Recorded because it is a deviation in grid density from the plan's wording.
 - **Would it block a gate?** No.
 - **Status:** open — noted, applied for runtime under the Gate 3 time budget.
+
+### Model search ran and returned a null result — incumbent unchanged
+- **Noticed by / when:** overnight run, after the plan was frozen
+- **What:** eight pre-registered configurations (`docs/search-plan.md`) scored
+  under nested CV. **Nested estimate of the selection procedure: 0.7558**
+  (std 0.0977), below the incumbent's 0.7765. No challenger passed the
+  three-condition paired test; closest was C2 at mean(d) +0.0008 on 8/50 folds.
+- **Why it matters:** this is evidence the incumbent is not a lucky pick — a
+  spread of regularisation strengths, a linear SVM, ridge, random forest and
+  extra trees were all tried and none beat it by a margin that survives paired
+  testing. Random forest was worst (0.6774, chosen 0/50 by inner selection),
+  which is consistent with 38 fault examples being too few for a nonlinear
+  model at 982 dimensions.
+- **Would it block a gate?** No. Frozen artefacts verified byte-identical
+  after the run.
+- **Status:** closed-not-actioned — the incumbent stands, as the
+  pre-registration requires. Full log retained at
+  `artifacts/rail/search_log.json`.
