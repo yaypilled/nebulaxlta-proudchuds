@@ -23,3 +23,7 @@ predictions/
 
 # Derived feature cache and fitted models (plan section 5.4). Never committed.
 artifacts/
+
+# Local agent/session config — not project deliverables
+CLAUDE.md
+.claude/
