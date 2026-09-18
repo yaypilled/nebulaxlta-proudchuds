@@ -1,8 +1,25 @@
+# Data lives OUTSIDE this repo, reached via src/common/paths.py (NEBULAX_DATA).
+# These entries are belt-and-braces against a stray copy landing here.
 data/
+PS3/02_Datasets/
+*.csv.gz
+
+# Model artefacts
 *.pkl
 *.joblib
+
+# Environments / caches
 __pycache__/
 .venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Submission outputs
 predictions.zip
 predictions/
+
 .DS_Store
+
+# Derived feature cache and fitted models (plan section 5.4). Never committed.
+artifacts/
