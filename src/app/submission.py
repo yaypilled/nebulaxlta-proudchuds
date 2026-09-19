@@ -1,5 +1,6 @@
 """Session-local inference results and deterministic official output archives."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import io
 import zipfile
 import pandas as pd
@@ -14,6 +15,7 @@ class AnalysisResult:
     source_files: list[str]
     source_digest: str
     elapsed_seconds: float
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC"))
 
     @property
     def filename(self):

@@ -28,9 +28,15 @@ Production inference requires only application code, the committed model artifac
 | Rail Corrugation | `overnight-writeup` / `qh` | CSV, 10,000 rows × 129 columns | `file_id,prediction` | Operational locally |
 | SHM | `bryan`, reconstructed fitted ridge | Headerless single-column stress CSV | `file_id,prediction` | Operational locally |
 
-Select a subsystem, upload telemetry, click **Analyse**, inspect the result and download the official CSV. The **Submission Centre** collects the generated outputs into `predictions.zip`, containing only the official CSVs at the archive root. Schema validation runs before download. A changed or failed upload invalidates the affected result. Other subsystem results remain available.
+The technician interface has four tabs: **Doors**, **Air conditioning**, **Rail condition** and **Structural health**. Upload a recording, click **Check data**, review the finding and download the result. The sidebar, overview, hero banner, model statistics and separate Submission Centre have been removed. All four fitted models remain inside the same application and share the original validated inference service.
 
-Do not submit outputs generated from training files. Source filenames are shown in the Submission Centre so the team can confirm it used the held-out inputs.
+- **Visual results:** ACV shows the actual eight car IDs with connected inspection-priority callouts. Red identifies the first car to inspect; grey marks lower priority, never a healthy diagnosis. The door recording symbol is red when resistance is detected and green when no abnormal cycle is found. Text and symbols accompany every colour. Car order is by ID, not a claimed physical formation; Door inputs do not identify individual cars.
+- **Action first:** abnormal door cycles and rail recordings appear first. Rail low-speed rule outputs are shown as **Check again**, while the official CSV retains its required `Normal` result. SHM estimates request engineering review because no pass/fail limit is supplied. Extra tables are expandable.
+- **Summary report:** **Download summary report** creates a standalone HTML report from all current results, with source filenames, check times, findings, inspection actions, full prediction tables and unchecked subsystems. Open it in a browser and choose **Print → Save as PDF** if needed. Different recordings are not assumed to describe one train or inspection.
+- **Downloads:** each tab keeps its official CSV download. A compact **Download all prediction files** expander contains `predictions.zip`, with only the original prediction CSVs at its root. The maintenance report is separate from this archive.
+- **Session integrity:** all upload controls remain mounted while switching tabs. A changed, removed, duplicated or failed input invalidates its result and report entry. Other subsystem results remain available.
+
+Submit one app containing all four models. Generate the final prediction ZIP using the complete held-out input set; the app also accepts smaller maintenance batches, which must not be mistaken for a complete submission.
 
 ## Model integration
 
@@ -47,7 +53,7 @@ Model artifacts are under `artifacts/`. The original Rail and ACV binaries are p
 python -m pytest -q
 ```
 
-54 contract and metric tests pass, including the preserved Door metric tests and the concurrent-analysis guard. The actual Streamlit uploader and Analyse button were exercised with every official test input:
+65 contract, metric and report-interpretation tests pass, including the preserved Door metric tests and the concurrent-analysis guard. The actual Streamlit uploader and Analyse button were exercised with every official test input:
 
 | Subsystem | Measured result | Local inference time |
 |---|---|---:|
@@ -56,7 +62,7 @@ python -m pytest -q
 | Rail | 68 files; 57 Normal / 5 Side I / 6 Side II; 10 low-speed rule results; no failure fallback accepted | 80.57 s |
 | SHM | 16 files; all finite numeric outputs | 7.85 s |
 
-These are predictions and runtime measurements, not held-out accuracy claims. The organisers retain the test answers. Local HTTP checks returned 200 for both `/` and `/_stcore/health`. Streamlit AppTest verified all pages, real uploads, result rendering, download controls, archive generation and a friendly malformed-upload error that clears stale output. Screenshot/browser visual review is still pending because the cloud browser cannot reach this environment's localhost server.
+These are predictions and runtime measurements, not held-out accuracy claims. The organisers retain the test answers. Local HTTP checks returned 200 for both `/` and `/_stcore/health`. Streamlit AppTest verified all four tabs, real uploads, result rendering, summary-report and prediction download controls, archive generation, removed uploads and a friendly malformed-upload error that clears stale output. The technician redesign was exercised again on all 68 Rail and 16 SHM files plus the Door and ACV test inputs; see `docs/integration/technician_verification.json`. All four prediction CSVs are byte-for-byte identical to the previously verified outputs. Screenshot/browser visual review is still pending because the cloud browser cannot reach this environment's localhost server.
 
 Reproduce the complete app test with raw data stored outside the repository:
 
@@ -126,11 +132,11 @@ The container listens on `0.0.0.0` and Cloud Run's `PORT`. It contains no raw tr
 
 ## Suggested judging video (2 minutes 50 seconds)
 
-1. **0:00–0:15:** Overview, four operational subsystems and the maintenance workflow.
-2. **0:15–0:45:** Upload Door Test.csv, Analyse, point out the 38 cycles and abnormal-cycle timeline, download its CSV.
-3. **0:45–1:20:** Upload ACV test XLSX, Analyse, show Car 01 and the complete ranking. Explain that the scores prioritise inspection.
-4. **1:20–1:50:** Upload two Rail examples, Analyse, show the side labels and any low-speed rule notice. Full-test outputs can already have been generated for submission.
-5. **1:50–2:20:** Upload SHM stress files, Analyse, show cumulative damage and the optional stress trace.
-6. **2:20–2:50:** Open Submission Centre, show validated CSVs and download predictions.zip. State the small-data/model limitations briefly.
+1. **0:00–0:15:** Show the four subsystem tabs and the upload/check workflow.
+2. **0:15–0:45:** Upload Door Test.csv, Check data, point out the flagged cycles, download its CSV.
+3. **0:45–1:20:** Upload ACV test XLSX, Check data, show the eight-car diagram and Car 01 inspection priority. Explain that the scores prioritise inspection.
+4. **1:20–1:50:** Upload two Rail examples, Check data, show the side labels and any low-speed rule notice. Full-test outputs can already have been generated for submission.
+5. **1:50–2:20:** Upload SHM stress files, Check data, show fatigue estimates for engineering review.
+6. **2:20–2:50:** Preview and download the maintenance summary, then expand Download all prediction files and download predictions.zip.
 
 Keep a separate final submission archive generated from the complete held-out test set; a short demonstration batch is not a substitute for all 68 Rail and 16 SHM test predictions.

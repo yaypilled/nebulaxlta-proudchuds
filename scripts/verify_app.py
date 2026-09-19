@@ -10,7 +10,7 @@ import resource
 from pathlib import Path
 import pandas as pd
 from streamlit.testing.v1 import AppTest
-from src.app.components import INFO
+from src.app.maintenance import summary_html
 from src.app.submission import predictions_zip
 from src.app.validators import validate_zip
 
@@ -39,10 +39,9 @@ def main():
         assert len(selected["rail"])==68
         assert len(selected["shm"])==16
     for key,paths in selected.items():
-        at.sidebar.radio[0].set_value(INFO[key]["title"]).run()
         uploads=[("acv_test_case.xlsx" if key=="acv" else p.name,p.read_bytes(),
                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if key=="acv" else "text/csv") for p in paths]
-        at.file_uploader[0].set_value(uploads[0] if key=="door" else uploads).run()
+        at.file_uploader(key=f"uploads_{key}").set_value(uploads[0] if key=="door" else uploads).run()
         assert not at.button(key=f"analyse_{key}").disabled
         at.button(key=f"analyse_{key}").click().run()
         assert not at.exception,[e.message for e in at.exception]
@@ -67,20 +66,29 @@ def main():
             report["subsystems"][key]["low_speed_rule_count"]=sum(len(d["low_speed_rule"]) for d in result.diagnostics["by_file"].values())
         print(key,report["subsystems"][key],flush=True)
         del uploads
-    at.sidebar.radio[0].set_value("Submission Centre").run()
     assert not at.exception,[e.message for e in at.exception]
     archive=predictions_zip(at.session_state["results"])
     assert not validate_zip(archive)
     (args.output/"predictions.zip").write_bytes(archive)
+    html=summary_html(at.session_state["results"])
+    (args.output/"maintenance_summary.html").write_bytes(html)
+    assert b"4 of 4 subsystems checked" in html
+    assert len(at.tabs)==4 and not at.sidebar.radio
+    assert any(d.label=="Download summary report" for d in at.get("download_button"))
     # Subsystem navigation must preserve the other generated outputs.
     assert set(at.session_state["results"])==set(selected)
     # A malformed replacement must remove the old result and show a friendly error.
-    at.sidebar.radio[0].set_value("Door System").run()
-    at.file_uploader[0].set_value(("bad.csv",b"wrong,data\n1,2\n","text/csv")).run()
+    at.file_uploader(key="uploads_door").set_value(("bad.csv",b"wrong,data\n1,2\n","text/csv")).run()
     at.button(key="analyse_door").click().run()
     assert not at.exception
     assert at.error and "door" not in at.session_state["results"]
     assert set(at.session_state["results"])=={"acv","rail","shm"}
+    # Clearing the uploader removes its output and cannot leave a stale report.
+    at.file_uploader(key="uploads_acv").set_value([]).run()
+    assert not at.exception
+    assert set(at.session_state["results"])=={"rail","shm"}
+    assert b"2 of 4 subsystems checked" in summary_html(at.session_state["results"])
+    report["report_and_clear_upload"]="passed"
     report["malformed_upload"]="friendly error; stale output removed"
     report["zip_validation"]="passed"
     report["process_peak_rss_mib"]=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
