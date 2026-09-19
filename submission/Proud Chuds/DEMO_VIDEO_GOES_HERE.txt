@@ -1,0 +1,22 @@
+MISSING COMPULSORY ITEM: the demo video.
+
+Record a screen capture of not more than 3 minutes showing the app in use
+end to end, then save it in THIS folder as demo_video.mp4 (or .mov) and
+delete this placeholder file.
+
+What the recording must show (spec section 4.1 item 1):
+  - selecting a subsystem
+  - uploading or dragging in a data file
+  - the prediction/result appearing on screen
+  - downloading that result
+
+A suggested run, about two minutes:
+  1. Start the app:  cd app && streamlit run app.py
+  2. Doors tab -> upload 02_Datasets/Door/Test.csv -> Check data
+     Show the "Cycles to inspect" table, sorted strongest evidence first.
+  3. Rail condition tab -> upload a handful of 02_Datasets/Rail_Corrugation/Test/*.csv
+     -> Check data. Show the counts and the flagged recordings.
+  4. Scroll to the bottom: Download predictions.zip.
+
+This video is the primary evidence judges use to score Ease of Use, and a
+submission missing it is not scored for that subsystem.
