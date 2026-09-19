@@ -9,97 +9,71 @@ from src.app.submission import predictions_zip
 logging.basicConfig(level=logging.INFO)
 st.set_page_config(page_title="Train checks", page_icon=":material/train:", layout="wide")
 
-# One design system, defined once. Colours are tokens so the accent can be
-# changed in a single place; every status colour is paired with a text label
-# and a glyph elsewhere in the app, so colour is never the only signal.
+# Colour, radius and font come from .streamlit/config.toml via Streamlit's own
+# theming API, so tabs, buttons and widgets pick them up without depending on
+# internal DOM class names. The CSS below only does layout work the theme API
+# cannot express: the header band, the status strip and the spacing rhythm.
 st.markdown("""<style>
 :root{
-  --ink:#101828; --ink-soft:#475467; --ink-faint:#667085;
-  --line:#E4E7EC; --line-strong:#D0D5DD;
-  --surface:#FFFFFF; --canvas:#F7F8FA;
-  --accent:#174C47; --accent-hover:#12403C;
-  --focus:#1570EF;
-  --radius:10px; --radius-sm:8px;
-  --shadow:0 1px 2px rgba(16,24,40,.05);
-  --shadow-lift:0 4px 12px rgba(16,24,40,.08);
+  --ink:#1B2A41; --ink-soft:#4A5A6E; --ink-faint:#7A8899;
+  --line:#DCE1E8; --accent:#C8102E;
+  --surface:#FFFFFF; --canvas:#F4F6F9;
+  --shadow:0 1px 2px rgba(27,42,65,.06);
+  --shadow-card:0 1px 3px rgba(27,42,65,.08),0 1px 2px rgba(27,42,65,.04);
 }
-.stApp{background:var(--canvas);color:var(--ink)}
-.block-container{padding-top:2.25rem;padding-bottom:4rem;max-width:1100px}
+.stApp{background:var(--canvas)}
+.block-container{padding-top:1.2rem;padding-bottom:4rem;max-width:1180px}
 
-/* Typography ---------------------------------------------------------- */
-h1{font-size:1.9rem!important;letter-spacing:-.5px;font-weight:700;margin-bottom:.15rem!important}
-h2,h3{letter-spacing:-.2px}
-.stCaption,[data-testid="stCaptionContainer"]{color:var(--ink-faint)}
+/* Header band --------------------------------------------------------- */
+.app-header{
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:20px 24px;margin-bottom:18px;box-shadow:var(--shadow-card);
+  border-top:3px solid var(--accent);
+}
+.app-header h1{
+  font-size:1.6rem;font-weight:700;letter-spacing:-.4px;margin:0 0 4px;color:var(--ink)
+}
+.app-header p{margin:0;color:var(--ink-soft);font-size:.92rem}
 
-/* Tabs: quieter until selected, so the eye goes to content ------------- */
-[data-baseweb="tab-list"]{gap:6px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:6px}
-button[data-baseweb="tab"]{
-  min-height:46px;padding:0 18px;background:var(--surface);
-  border:1px solid var(--line-strong);border-radius:var(--radius-sm);
-  color:var(--ink-soft);font-weight:600;font-size:.94rem;
-  transition:border-color .15s ease,color .15s ease,box-shadow .15s ease;
+/* Status strip: four cards, one per subsystem ------------------------- */
+.status-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.status-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:14px 16px;box-shadow:var(--shadow);border-left:3px solid var(--line);
 }
-button[data-baseweb="tab"]:hover{border-color:var(--accent);color:var(--accent)}
-button[data-baseweb="tab"][aria-selected="true"]{
-  background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:var(--shadow)
+.status-card.done{border-left-color:#067647}
+.status-card.pending{border-left-color:#DCE1E8}
+.status-card.down{border-left-color:#B42318}
+.status-card .label{
+  font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--ink-faint);font-weight:700;margin-bottom:6px
 }
-[data-baseweb="tab-highlight"],[data-baseweb="tab-border"]{display:none}
+.status-card .value{font-size:1.05rem;font-weight:650;color:var(--ink);line-height:1.3}
+.status-card .sub{font-size:.78rem;color:var(--ink-faint);margin-top:3px}
 
-/* Cards: uploader, metrics, expanders share one surface treatment ------ */
-[data-testid="stFileUploader"]{
-  background:var(--surface);border:1px solid var(--line-strong);
-  border-radius:var(--radius);padding:.5rem;box-shadow:var(--shadow)
-}
-[data-testid="stFileUploader"] section{border:none;background:transparent}
-[data-testid="stMetric"]{
-  background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--radius-sm);padding:14px 16px;box-shadow:var(--shadow)
-}
-[data-testid="stExpander"]{
-  background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--radius-sm);box-shadow:var(--shadow)
-}
-[data-testid="stExpander"] summary{font-weight:600;color:var(--ink-soft)}
+/* Panels around the working area -------------------------------------- */
+[data-testid="stFileUploader"]{background:var(--surface);border-radius:10px}
+[data-testid="stExpander"]{background:var(--surface);border-radius:10px;box-shadow:var(--shadow)}
 
-/* Buttons -------------------------------------------------------------- */
-.stButton>button,.stDownloadButton>button{
-  border-radius:var(--radius-sm);font-weight:600;
-  transition:transform .08s ease,box-shadow .15s ease,background .15s ease
-}
-.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{
-  background:var(--accent);border-color:var(--accent)
-}
-.stButton>button[kind="primary"]:hover:not(:disabled),
-.stDownloadButton>button[kind="primary"]:hover:not(:disabled){
-  background:#12403C;border-color:#12403C;box-shadow:var(--shadow-lift)
-}
-.stButton>button:active:not(:disabled){transform:translateY(1px)}
-.stButton>button:disabled{opacity:.5}
-
-/* Alerts: flatter, less shouty than the default -------------------------*/
-[data-testid="stAlert"]{border-radius:var(--radius-sm);border-width:1px;box-shadow:none}
-
-/* Dividers and progress ------------------------------------------------ */
-hr{border-color:var(--line)!important;margin:2rem 0 1.5rem}
-[data-testid="stProgressBar"]>div>div>div{background:var(--accent)}
-
-/* Accessibility: a visible focus ring on every interactive element ----- */
-button:focus-visible,summary:focus-visible,[data-baseweb="tab"]:focus-visible,
-input:focus-visible,[data-testid="stFileUploader"] *:focus-visible{
-  outline:3px solid var(--focus)!important;outline-offset:2px;border-radius:4px
+/* Section headings ---------------------------------------------------- */
+.section-title{
+  font-size:.78rem;text-transform:uppercase;letter-spacing:.6px;font-weight:700;
+  color:var(--ink-faint);margin:4px 0 10px
 }
 
-/* Respect a reduced-motion preference ---------------------------------- */
-@media(prefers-reduced-motion:reduce){
-  *{transition:none!important;animation:none!important}
+/* Keep a visible focus ring for keyboard users ------------------------ */
+button:focus-visible,summary:focus-visible,input:focus-visible{
+  outline:3px solid var(--accent)!important;outline-offset:2px;border-radius:4px
 }
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
-/* Phone ---------------------------------------------------------------- */
+@media(max-width:820px){
+  .status-strip{grid-template-columns:repeat(2,1fr)}
+}
 @media(max-width:640px){
-  .block-container{padding-left:1rem;padding-right:1rem;padding-top:1.5rem}
-  h1{font-size:1.5rem!important}
-  button[data-baseweb="tab"]{padding:0 12px;min-height:42px;font-size:.88rem}
-  [data-baseweb="tab-list"]{overflow-x:auto;flex-wrap:nowrap}
+  .block-container{padding-left:1rem;padding-right:1rem}
+  .app-header{padding:16px}.app-header h1{font-size:1.3rem}
+  .status-strip{grid-template-columns:1fr;gap:8px}
 }
 """ + VISUAL_CSS + "</style>", unsafe_allow_html=True)
 
@@ -109,11 +83,51 @@ def backend_status():
     return {key: model_status(key) for key in SUBSYSTEMS}
 
 
+def status_strip(status, results):
+    """Four cards showing, at a glance, what has been checked and what is left.
+
+    This is the difference between a form and a dashboard: the page says
+    something before any file is uploaded.
+    """
+    cards = []
+    for key in SUBSYSTEMS:
+        name = NAMES[key]
+        if not status[key][0]:
+            cards.append(f'<div class="status-card down"><div class="label">{name}</div>'
+                         f'<div class="value">Unavailable</div>'
+                         f'<div class="sub">Model not loaded</div></div>')
+        elif key in results:
+            result = results[key]
+            rows = len(result.table)
+            noun = "segment" if key == "door" else "file"
+            plural = "" if rows == 1 else "s"
+            cards.append(f'<div class="status-card done"><div class="label">{name}</div>'
+                         f'<div class="value">Checked</div>'
+                         f'<div class="sub">{rows} {noun}{plural} · {len(result.source_files)} upload'
+                         f'{"" if len(result.source_files) == 1 else "s"}</div></div>')
+        else:
+            cards.append(f'<div class="status-card pending"><div class="label">{name}</div>'
+                         f'<div class="value">Not checked</div>'
+                         f'<div class="sub">Awaiting upload</div></div>')
+    st.markdown('<div class="status-strip">' + "".join(cards) + "</div>",
+                unsafe_allow_html=True)
+
+
 status = backend_status()
 results = st.session_state.setdefault("results", {})
 
-st.title("Train checks")
-st.caption("Choose a subsystem · Upload data · Check results")
+st.markdown(
+    '<div class="app-header"><h1>Train condition checks</h1>'
+    "<p>Upload recorded sensor data for a subsystem, run the check, "
+    "and download the results.</p></div>",
+    unsafe_allow_html=True,
+)
+
+# Reserve the strip's position now, but fill it in AFTER the tabs have run.
+# The tabs are what populate `results`, so rendering here directly would show
+# the previous run's state and a freshly checked subsystem would still read
+# "Not checked" until the next interaction.
+strip_slot = st.empty()
 
 # All four upload widgets stay mounted so changing tabs preserves selections.
 for tab, key in zip(st.tabs([NAMES[k] for k in SUBSYSTEMS]), SUBSYSTEMS):
@@ -122,21 +136,38 @@ for tab, key in zip(st.tabs([NAMES[k] for k in SUBSYSTEMS]), SUBSYSTEMS):
             st.error("This check is temporarily unavailable. Please contact the app administrator.")
             results.pop(key, None)
             continue
-        st.write(INFO[key]["input"])
-        uploads = st.file_uploader(f"{NAMES[key]} data", type=["xlsx"] if key == "acv" else ["csv"],
-            accept_multiple_files=key != "door", key=f"uploads_{key}", label_visibility="collapsed", max_upload_size=64)
-        uploads = ([uploads] if uploads is not None else []) if key == "door" else (uploads or [])
-        names = [upload.name for upload in uploads]
-        duplicates = len(names) != len(set(names))
-        files = {upload.name: upload.getvalue() for upload in uploads}
-        changed = key in results and (duplicates or not files or source_digest(files) != results[key].source_digest)
-        if changed:
-            results.pop(key, None)
+
+        left, right = st.columns([3, 2], gap="large")
+        with left:
+            st.markdown('<div class="section-title">1 · Upload</div>', unsafe_allow_html=True)
+            st.write(INFO[key]["input"])
+            uploads = st.file_uploader(f"{NAMES[key]} data", type=["xlsx"] if key == "acv" else ["csv"],
+                accept_multiple_files=key != "door", key=f"uploads_{key}", label_visibility="collapsed", max_upload_size=64)
+            uploads = ([uploads] if uploads is not None else []) if key == "door" else (uploads or [])
+            names = [upload.name for upload in uploads]
+            duplicates = len(names) != len(set(names))
+            files = {upload.name: upload.getvalue() for upload in uploads}
+            changed = key in results and (duplicates or not files or source_digest(files) != results[key].source_digest)
+            if changed:
+                results.pop(key, None)
+                if files:
+                    st.info("Files changed. Run the check again to update the result.")
+            if duplicates:
+                st.error("Two files have the same name. Remove or rename the duplicate.")
+            run = st.button("Check data", type="primary", icon=":material/play_arrow:",
+                            key=f"analyse_{key}", disabled=not files or duplicates,
+                            use_container_width=True)
+        with right:
+            st.markdown('<div class="section-title">Selected</div>', unsafe_allow_html=True)
             if files:
-                st.info("Files changed. Run the check again to update the result.")
-        if duplicates:
-            st.error("Two files have the same name. Remove or rename the duplicate.")
-        if st.button("Check data", type="primary", icon=":material/play_arrow:", key=f"analyse_{key}", disabled=not files or duplicates):
+                st.metric("Files ready", len(files))
+                with st.expander(f"{len(files)} file{'' if len(files) == 1 else 's'}"):
+                    for name in sorted(files):
+                        st.caption(name)
+            else:
+                st.caption("No files selected yet.")
+
+        if run:
             results.pop(key, None)
             bar = st.progress(0.0, text="Checking your data…")
             try:
@@ -149,28 +180,40 @@ for tab, key in zip(st.tabs([NAMES[k] for k in SUBSYSTEMS]), SUBSYSTEMS):
                 bar.empty()
         if key in results:
             result = results[key]
+            st.divider()
+            st.markdown('<div class="section-title">2 · Results</div>', unsafe_allow_html=True)
             st.caption("Checked: " + ", ".join(result.source_files))
             RENDERERS[key](result)
             st.download_button("Download results (CSV)", result.csv_bytes, result.filename, "text/csv",
                 key=f"download_{key}", icon=":material/download:")
         del files, uploads
 
+# Now that every tab has run, the strip reflects this run's results.
+with strip_slot.container():
+    status_strip(status, results)
+
 if results:
     st.divider()
-    st.subheader("Summary report")
-    st.caption(f"{len(results)} of 4 subsystems checked. The report includes current results from all tabs; unchecked systems are labelled.")
-    with st.expander("Preview summary"):
-        for key in SUBSYSTEMS:
-            st.write(f"**{NAMES[key]}**")
-            if key in results:
-                for row in findings(results[key]):
-                    st.text(f"{row['source']} · {row['status']}\n{row['finding']}\n{row['action']}")
-            else:
-                st.write("Not checked")
-    st.download_button("Download summary report", summary_html(results), "maintenance_summary.html", "text/html",
-        type="primary", key="summary_report", icon=":material/download:")
-    st.caption("Open the report to read or print it. Choose Print → Save as PDF for a PDF copy.")
-    with st.expander("Download all prediction files"):
+    st.markdown('<div class="section-title">3 · Report and submission</div>', unsafe_allow_html=True)
+    report_col, zip_col = st.columns(2, gap="large")
+
+    with report_col:
+        st.subheader("Summary report")
+        st.caption(f"{len(results)} of 4 subsystems checked. Unchecked systems are labelled in the report.")
+        with st.expander("Preview summary"):
+            for key in SUBSYSTEMS:
+                st.write(f"**{NAMES[key]}**")
+                if key in results:
+                    for row in findings(results[key]):
+                        st.text(f"{row['source']} · {row['status']}\n{row['finding']}\n{row['action']}")
+                else:
+                    st.write("Not checked")
+        st.download_button("Download summary report", summary_html(results), "maintenance_summary.html", "text/html",
+            type="primary", key="summary_report", icon=":material/download:", use_container_width=True)
+        st.caption("Open the report to read or print it. Choose Print → Save as PDF for a PDF copy.")
+
+    with zip_col:
+        st.subheader("Prediction files")
         st.caption("Includes " + ", ".join(result.filename for result in results.values()))
         # predictions_zip validates every result and raises on a bad one. Build
         # it before rendering the control: calling it inside st.download_button
@@ -182,4 +225,6 @@ if results:
             st.error(f"Cannot build predictions.zip: {exc}")
         else:
             st.download_button("Download predictions.zip", archive, "predictions.zip",
-                "application/zip", key="predictions_zip", icon=":material/folder_zip:")
+                "application/zip", key="predictions_zip", icon=":material/folder_zip:",
+                use_container_width=True)
+            st.caption("One archive, one CSV per subsystem checked, at the top level.")
