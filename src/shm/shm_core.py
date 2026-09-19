@@ -31,10 +31,6 @@ and were recovered empirically from the training data:
 """
 import numpy as np
 import fatpack
-from sklearn.linear_model import RidgeCV
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import make_pipeline
-
 SREF = 10.0
 NBINS = 4000
 NCLASS = 64
@@ -110,27 +106,39 @@ def predict_physics(H, model):
 
 
 # ---------------------------------------------------------- MODEL B: ridge --
+# SHIPPED MODEL. Stored as plain numbers in model.json -- no pickle, no sklearn
+# at inference time, so a version mismatch on the deployment host cannot break it.
 def fit_ridge(H, D, exponents=EXPONENTS):
     """Ridge regression of log D on log pseudo-damage at several exponents.
-    The ridge penalty is chosen by internal generalised CV on the training fold."""
+    Penalty chosen by internal generalised CV on the training fold. The fitted
+    scaler is folded into the weights so the result is a plain linear model."""
+    from sklearn.linear_model import RidgeCV
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.pipeline import make_pipeline
     X = design_matrix(H, exponents)
     pipe = make_pipeline(StandardScaler(), RidgeCV(alphas=np.logspace(-3, 4, 50)))
     pipe.fit(X, np.log(D))
-    pred = np.exp(pipe.predict(X))
-    return {"kind": "ridge", "k": NCLASS, "exponents": list(exponents),
-            "alpha": float(pipe.named_steps["ridgecv"].alpha_),
-            "coef": pipe.named_steps["ridgecv"].coef_.tolist(),
-            "train_mape": float(np.mean(np.abs(pred - D) / D)), "_pipe": pipe}
+    sc = pipe.named_steps["standardscaler"]
+    rg = pipe.named_steps["ridgecv"]
+    w = rg.coef_ / sc.scale_
+    b0 = float(rg.intercept_ - np.dot(rg.coef_, sc.mean_ / sc.scale_))
+    pred = np.exp(design_matrix(H, exponents) @ w + b0)
+    return {"kind": "ridge_linear", "k": NCLASS, "exponents": list(exponents),
+            "weights": w.tolist(), "intercept": b0,
+            "alpha": float(rg.alpha_),
+            "train_mape": float(np.mean(np.abs(pred - D) / D))}
 
 
 def predict_ridge(H, model):
-    return np.exp(model["_pipe"].predict(design_matrix(H, model["exponents"])))
+    """Pure numpy. Needs only the numbers in model.json."""
+    X = design_matrix(H, model["exponents"])
+    return np.exp(X @ np.asarray(model["weights"]) + model["intercept"])
 
 
 # ------------------------------------------------------------------ facade --
 def fit(H, D, kind="ridge"):
-    return fit_ridge(H, D) if kind == "ridge" else fit_physics(H, D)
+    return fit_ridge(H, D) if kind.startswith("ridge") else fit_physics(H, D)
 
 
 def predict(H, model):
-    return predict_ridge(H, model) if model["kind"] == "ridge" else predict_physics(H, model)
+    return predict_ridge(H, model) if model["kind"].startswith("ridge") else predict_physics(H, model)
