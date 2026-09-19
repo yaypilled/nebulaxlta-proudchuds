@@ -121,3 +121,43 @@ def summary_html(results):
     <p>Findings are grouped by source recording; uploads are not assumed to describe the same train or inspection.</p>
     <p class="muted print-help">Use your browser’s Print → Save as PDF to save or print this report. Expand Full results first if required.</p>
     {''.join(sections)}<footer class="muted">Model findings support inspection planning. “No issue detected” is not a release-to-service approval.</footer></body></html>''').encode("utf-8")
+
+# --- Evidence strength -----------------------------------------------------
+#
+# The door model is a threshold on integrated motor current. How far a cycle
+# sits from that threshold is the evidence for its call, and it varies enormously:
+# on the official test stream, flagged cycles range from +0.04% to +36.5% over.
+# Presenting a +0.04% exceedance with the same certainty as a +36.5% one sends a
+# technician out on a coin flip, so the margin is surfaced rather than hidden.
+#
+# MARGINAL_BAND is a presentation choice, not a fitted quantity. It does not
+# change any prediction; the CSV is unaffected. The margin is a distance from a
+# fitted threshold and is deliberately NOT called a probability or a confidence
+# percentage, because the model cannot support that claim.
+
+MARGINAL_BAND = 5.0  # percent either side of the threshold
+
+
+def margin_pct(current_sum, threshold):
+    """How far a cycle sits above (+) or below (-) its operation's threshold."""
+    if not threshold:
+        return 0.0
+    return (float(current_sum) / float(threshold) - 1.0) * 100.0
+
+
+def evidence_label(margin):
+    """Plain words for how firm a call is. Never a fabricated probability."""
+    if abs(margin) < MARGINAL_BAND:
+        return "Borderline"
+    return "Clear"
+
+
+def evidence_note(margin, prediction):
+    """One sentence a technician can act on."""
+    if abs(margin) >= MARGINAL_BAND:
+        if prediction == "Abnormal resistance":
+            return f"Well above the threshold ({margin:+.1f}%)."
+        return f"Well below the threshold ({margin:+.1f}%)."
+    if prediction == "Abnormal resistance":
+        return f"Only just over the threshold ({margin:+.1f}%). Verify before acting."
+    return f"Only just under the threshold ({margin:+.1f}%). Worth a look while you are there."

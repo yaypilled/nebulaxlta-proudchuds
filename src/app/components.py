@@ -1,7 +1,8 @@
 """Technician-facing results, with detail available only when requested."""
 import pandas as pd
 import streamlit as st
-from src.app.maintenance import NAMES, badge, findings, train_view
+from src.app.maintenance import (MARGINAL_BAND, NAMES, badge, evidence_label,
+                                  evidence_note, findings, margin_pct, train_view)
 
 INFO = {
     "door": {"title": NAMES["door"], "input": "Upload one door recording (.csv)."},
@@ -22,17 +23,48 @@ def show_door(result):
     row = findings(result)[0]
     show_finding(row)
     st.markdown(train_view([("Door recording", row["status"], row["tone"])]), unsafe_allow_html=True)
+
     detail = next(iter(result.diagnostics["by_file"].values()))
     cycles = pd.DataFrame(detail["cycles"])
-    display = cycles[["start_time", "end_time", "operation", "prediction"]].copy()
-    display.insert(0, "Cycle", range(1, len(display) + 1))
-    display = display.rename(columns={"start_time": "Start time", "end_time": "End time", "operation": "Movement", "prediction": "Finding"})
-    flagged = display[display.Finding.eq("Abnormal resistance")]
+    cycles["margin"] = [margin_pct(c, t) for c, t in zip(cycles["current_sum"], cycles["threshold"])]
+    cycles["Evidence"] = cycles["margin"].map(evidence_label)
+    cycles["Cycle"] = range(1, len(cycles) + 1)
+
+    flagged = cycles[cycles.prediction.eq("Abnormal resistance")].sort_values("margin", ascending=False)
+    watch = cycles[cycles.prediction.eq("Normal") & cycles.margin.gt(-MARGINAL_BAND)].sort_values("margin", ascending=False)
+
     if len(flagged):
-        st.write("**Cycles to inspect**")
-        st.dataframe(flagged, hide_index=True, width="stretch")
+        st.write("**Cycles to inspect** — strongest evidence first")
+        st.dataframe(
+            flagged.assign(**{"Over threshold": flagged["margin"]})[
+                ["Cycle", "start_time", "end_time", "operation", "Over threshold", "Evidence"]
+            ].rename(columns={"start_time": "Start time", "end_time": "End time", "operation": "Movement"}),
+            column_config={"Over threshold": st.column_config.NumberColumn(format="%+.1f%%")},
+            hide_index=True, width="stretch")
+        borderline = int((flagged["margin"].abs() < MARGINAL_BAND).sum())
+        if borderline:
+            st.caption(f"{borderline} of these sit within {MARGINAL_BAND:.0f}% of the threshold. "
+                       "Verify those before raising work.")
+
+    if len(watch):
+        st.write(f"**Worth a look** — {len(watch)} cycle(s) close to the threshold but not flagged")
+        st.dataframe(
+            watch.assign(**{"Below threshold": watch["margin"]})[
+                ["Cycle", "start_time", "operation", "Below threshold"]
+            ].rename(columns={"start_time": "Start time", "operation": "Movement"}),
+            column_config={"Below threshold": st.column_config.NumberColumn(format="%+.1f%%")},
+            hide_index=True, width="stretch")
+        st.caption("Not faults. Listed because they are close enough that a check while you are "
+                   "at the door costs little.")
+
+    display = cycles[["Cycle", "start_time", "end_time", "operation", "prediction", "margin", "Evidence"]].rename(
+        columns={"start_time": "Start time", "end_time": "End time", "operation": "Movement",
+                 "prediction": "Finding", "margin": "Margin"})
     with st.expander("All door cycles"):
-        st.dataframe(display, hide_index=True, width="stretch")
+        st.dataframe(display, column_config={"Margin": st.column_config.NumberColumn(format="%+.1f%%")},
+                     hide_index=True, width="stretch")
+        st.caption("Margin is the distance from this movement's fitted current threshold. "
+                   "It is not a probability, and it does not change the submitted result.")
 
 
 def show_acv(result):
