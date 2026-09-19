@@ -6,13 +6,14 @@ All four subsystems attempted: Door, ACV, Rail Corrugation, SHM.
 
 | Item | Status |
 |---|---|
-| `demo_video.mp4` — item 1 | **NOT YET RECORDED** |
+| `demo_video.mp4` — item 1 | Submitted separately, outside this folder. |
 | `predictions.zip` — item 2 | Ready. Four CSVs, flat at the top level. |
 | `app/` — item 3 | Ready. Streamlit app covering all four subsystems. |
 | `Optional_Items/` | One write-up covering all four subsystems and the app, plus code and model per subsystem. |
 
-**The demo video is the one compulsory item still outstanding.** Per §4.1, a
-submission missing any compulsory item is not scored for that subsystem.
+The demo video was uploaded separately rather than placed in this folder.
+Per §4.1 all three compulsory items must reach the organisers; only the
+delivery route differs.
 
 ## predictions.zip
 
