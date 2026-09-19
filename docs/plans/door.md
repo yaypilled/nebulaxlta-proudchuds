@@ -160,6 +160,35 @@ number, and never the best fold. The 0.857 fold is the honest one: it is where
 the global class overlap bites, and it is the reason for the per-operation
 split rather than a single global threshold.
 
+### Results as implemented — and why the perfect folds are not the headline
+
+With the per-operation split in place, **all five rolling-origin folds score
+1.0000**. That is not the number to quote, and the reason matters.
+
+Per-operation, the classes are **linearly separable with a gap**:
+
+| Operation | Normal max | Abnormal min | Empty gap |
+|---|---|---|---|
+| Close | 86,678 | 90,126 | 3,448 (3.9% of mean) |
+| Open | 94,041 | 106,315 | 12,274 (12.4% of mean) |
+
+The threshold sits in empty space, which is why forward-only validation never
+misclassifies anything.
+
+**Leave-one-out finds the case forward validation cannot.** Refitting with each
+cycle held out in turn: **109/110 correct, one failure** — cycle index 4, a
+Close at `current_sum` 90,126, which is precisely the abnormal minimum sitting
+nearest the normal maximum. Rolling-origin never catches it because index 4 is
+always inside the training portion.
+
+**Reversed-order validation** (train on late cycles, test on early ones) scores
+0.9818 / 0.9848 / 0.9870 at three cut points.
+
+**So the honest range is ~0.98-0.99, not 1.0.** The perfect rolling-origin
+folds are an artefact of where the single hard case happens to sit in time.
+Both figures are reported; the leave-one-out result is the one that should
+appear in the write-up.
+
 **The threshold is fitted inside the training portion only**, per fold. No
 threshold may be chosen by looking at the fold it is scored on.
 

@@ -99,3 +99,96 @@ def macro_f1_from_per_class(per_class_scores: Sequence[float]) -> float:
     if scores.size == 0:
         raise ValueError("per_class_scores must not be empty")
     return float(scores.mean())
+
+
+# ===========================================================================
+# Door — IoU-weighted F1
+# ===========================================================================
+#
+# Reference: Door_Subsystem_Info_Kit.md section 4, quoted where it matters.
+#
+# The Door metric scores segmentation and labelling together. It is NOT plain
+# F1, even though on the data we were given it reduces to plain F1 because
+# gap-splitting recovers every boundary exactly (see docs/plans/door.md §1).
+# The real matching procedure is implemented here regardless, so that a stream
+# which does NOT segment cleanly is scored honestly rather than optimistically.
+
+DOOR_CLASSES: tuple[str, ...] = ("Normal", "Abnormal resistance")
+
+
+def segment_iou(
+    true_start: float, true_end: float, pred_start: float, pred_end: float
+) -> float:
+    """Intersection-over-union of two time intervals.
+
+    Info Kit section 4.1, verbatim:
+
+        intersection = max(0, min(true_end, pred_end) - max(true_start, pred_start))
+        union        = (true_end - true_start) + (pred_end - pred_start) - intersection
+        IoU          = intersection / union   (0 if union <= 0)
+    """
+    intersection = max(0.0, min(true_end, pred_end) - max(true_start, pred_start))
+    union = (true_end - true_start) + (pred_end - pred_start) - intersection
+    if union <= 0:
+        return 0.0
+    return float(intersection / union)
+
+
+def door_iou_f1(
+    true_segments: Sequence[tuple[float, float, str]],
+    pred_segments: Sequence[tuple[float, float, str]],
+) -> float:
+    """IoU-weighted F1 for Door (Info Kit section 4.2).
+
+    Each segment is ``(start, end, label)`` with start/end as numeric times in
+    any consistent unit (seconds since epoch is what the pipeline uses).
+
+    The three rules that make this not-plain-F1, all from section 4.1:
+
+    1. **Same label only.** "A segment with perfectly overlapping timing but
+       the wrong label ... cannot match at all." A mislabelled segment is both
+       a miss and a false positive, never a partial credit.
+    2. **IoU > 0 required.** Touching-but-not-overlapping does not match.
+    3. **One-to-one, greedy by highest IoU first.** "once a segment (true or
+       predicted) is used, it's removed from further consideration."
+
+    Credit for a match is the IoU value itself, not a flat 1.0, so sloppy
+    boundaries cost score without being counted as a miss.
+    """
+    n_true = len(true_segments)
+    n_pred = len(pred_segments)
+    if n_true == 0 and n_pred == 0:
+        return 0.0
+    if n_true == 0 or n_pred == 0:
+        return 0.0
+
+    candidates = []
+    for i, (ts_, te_, tl) in enumerate(true_segments):
+        for j, (ps_, pe_, pl) in enumerate(pred_segments):
+            if tl != pl:
+                continue  # rule 1
+            iou = segment_iou(ts_, te_, ps_, pe_)
+            if iou > 0.0:  # rule 2
+                candidates.append((iou, i, j))
+
+    # Rule 3: greedy, highest IoU first. Ties broken by index for determinism,
+    # so the same inputs always produce the same score.
+    candidates.sort(key=lambda c: (-c[0], c[1], c[2]))
+
+    used_true: set[int] = set()
+    used_pred: set[int] = set()
+    iou_sum = 0.0
+    for iou, i, j in candidates:
+        if i in used_true or j in used_pred:
+            continue
+        used_true.add(i)
+        used_pred.add(j)
+        iou_sum += iou
+
+    soft_recall = iou_sum / n_true
+    soft_precision = iou_sum / n_pred
+    if soft_recall + soft_precision <= 0:
+        return 0.0
+    return float(
+        2 * soft_recall * soft_precision / (soft_recall + soft_precision)
+    )

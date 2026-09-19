@@ -1,6 +1,6 @@
 """Validate a rail submission CSV against the Info Kit's stated format.
 
-Rail only this session; Door, ACV and SHM are deferred.
+Rail and Door. ACV and SHM are deferred.
 
 Checks, per Rail_Corrugation_Info_Kit.md section 3 (lines 109-118):
 
@@ -112,11 +112,115 @@ def validate(
     return violations
 
 
+
+# --- Door ------------------------------------------------------------------
+
+DOOR_FILENAME = "door_predictions.csv"
+DOOR_HEADER = ["start_time", "end_time", "prediction"]
+DOOR_LABELS = {"Normal", "Abnormal resistance"}
+
+
+def _door_time(value: str) -> float | None:
+    """Parse the native Year-M-D-H-M-S-ms format to epoch seconds, or None."""
+    try:
+        parts = [int(x) for x in value.strip().split("-")]
+        if len(parts) != 7:
+            return None
+        from datetime import datetime
+
+        y, mo, d, h, mi, s, ms = parts
+        return datetime(y, mo, d, h, mi, s, ms * 1000).timestamp()
+    except (ValueError, OverflowError):
+        return None
+
+
+def validate_door(path: Path) -> list[str]:
+    """Validate a door_predictions.csv (Info Kit section 3).
+
+    Unlike rail there is no fixed row count: Test is one continuous stream and
+    the number of cycles is whatever the model finds. So this checks structure
+    and internal consistency rather than a count.
+    """
+    violations: list[str] = []
+
+    if not path.is_file():
+        return [f"File does not exist: {path}"]
+
+    if path.name != DOOR_FILENAME:
+        violations.append(f"Filename is {path.name!r}, expected {DOOR_FILENAME!r}")
+
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        rows = list(csv.reader(handle))
+
+    if not rows:
+        return violations + ["File is empty: no header, no rows"]
+
+    if rows[0] != DOOR_HEADER:
+        violations.append(f"Header is {rows[0]!r}, expected {DOOR_HEADER!r}")
+
+    spans: list[tuple[float, float, int]] = []
+    for offset, row in enumerate(rows[1:]):
+        line_no = offset + 2
+
+        if not row or all(f.strip() == "" for f in row):
+            violations.append(f"Line {line_no}: empty row")
+            continue
+        if len(row) < 3:
+            violations.append(
+                f"Line {line_no}: has {len(row)} field(s), expected at least 3 -- {row!r}"
+            )
+            continue
+
+        start_raw, end_raw, prediction = row[0], row[1], row[2]
+
+        if prediction not in DOOR_LABELS:
+            violations.append(
+                f"Line {line_no}: prediction {prediction!r} is not one of "
+                f"{sorted(DOOR_LABELS)}"
+            )
+
+        start = _door_time(start_raw)
+        end = _door_time(end_raw)
+        if start is None:
+            violations.append(f"Line {line_no}: unparseable start_time {start_raw!r}")
+        if end is None:
+            violations.append(f"Line {line_no}: unparseable end_time {end_raw!r}")
+        if start is not None and end is not None:
+            if end <= start:
+                violations.append(
+                    f"Line {line_no}: end_time is not after start_time "
+                    f"({start_raw!r} -> {end_raw!r})"
+                )
+            else:
+                spans.append((start, end, line_no))
+
+    # Overlapping predicted segments cannot both be right: matching is
+    # one-to-one, so an overlap guarantees at least one false positive.
+    spans.sort()
+    for (s1, e1, l1), (s2, e2, l2) in zip(spans, spans[1:]):
+        if s2 < e1:
+            violations.append(
+                f"Line {l2}: segment overlaps the one on line {l1} "
+                f"(previous ends after this one starts)"
+            )
+
+    if not spans and len(rows) > 1:
+        violations.append("No valid segments parsed")
+
+    return violations
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate a rail_predictions.csv submission file."
     )
     parser.add_argument("path", type=Path, help="Path to the submission CSV")
+    parser.add_argument(
+        "--subsystem",
+        choices=("rail", "door", "auto"),
+        default="auto",
+        help="Which schema to check (default: inferred from the filename)",
+    )
     parser.add_argument(
         "--expect-rows",
         type=int,
@@ -130,8 +234,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    expected = None if args.allow_any_rows else args.expect_rows
-    violations = validate(args.path, expected_rows=expected)
+    subsystem = args.subsystem
+    if subsystem == "auto":
+        subsystem = "door" if "door" in args.path.name.lower() else "rail"
+
+    if subsystem == "door":
+        violations = validate_door(args.path)
+    else:
+        expected = None if args.allow_any_rows else args.expect_rows
+        violations = validate(args.path, expected_rows=expected)
 
     if violations:
         print(f"INVALID: {args.path} ({len(violations)} violation(s))")
