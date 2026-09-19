@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -34,6 +35,7 @@ MODEL_PATH = Path(__file__).resolve().parents[2] / "artifacts" / "door" / "model
 SUBMISSION_COLUMNS = ["start_time", "end_time", "prediction"]
 
 
+@lru_cache(maxsize=1)
 def _load_model() -> DoorThresholdModel:
     if not MODEL_PATH.is_file():
         raise FileNotFoundError(
@@ -65,13 +67,17 @@ def predict(input_path: Path) -> pd.DataFrame:
             raise FileNotFoundError(f"No CSV found in {input_path}")
         stream_path = candidates[0]
         if len(candidates) > 1:
-            print(f"[door] {len(candidates)} CSVs found; using {stream_path.name}")
+            raise ValueError("Door inference requires exactly one continuous CSV stream.")
     else:
         stream_path = input_path
 
     frame = load_stream(stream_path)
     cycle_ids = segment_stream(frame)
     features = cycle_features(frame, cycle_ids)
+    if (features["n_rows"] < 2).any() or (features["duration_s"] <= 0).any():
+        raise ValueError("The uploaded stream produced an unexpected cycle structure: incomplete cycles.")
+    if ((features["duration_s"] > 60) | (features["n_rows"] > 3000)).any():
+        raise ValueError("The uploaded stream produced an unexpected cycle structure. Verify the Door telemetry format.")
 
     print(f"[door] rows: {len(frame)}")
     print(f"[door] segments found at gap > {GAP_THRESHOLD_S}s: {len(features)}")
@@ -84,13 +90,22 @@ def predict(input_path: Path) -> pd.DataFrame:
     by_op = features["operation"].value_counts().to_dict()
     print(f"[door] operations inferred: {by_op}")
 
-    return pd.DataFrame(
+    result = pd.DataFrame(
         {
             "start_time": features["start_time"].to_numpy(),
             "end_time": features["end_time"].to_numpy(),
             "prediction": predictions,
         }
     )[SUBMISSION_COLUMNS]
+    features["threshold"] = features["operation"].map(model.thresholds).fillna(model.fallback)
+    features["prediction"] = predictions
+    result.attrs["diagnostics"] = {
+        "input_rows": len(frame),
+        "cycles": features.to_dict("records"),
+        "ambiguous_operations": int(features["operation_ambiguous"].sum()),
+        "gap_threshold_s": GAP_THRESHOLD_S,
+    }
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:

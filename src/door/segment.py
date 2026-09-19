@@ -74,9 +74,26 @@ def load_stream(path: Path) -> pd.DataFrame:
     frame = pd.read_csv(path)
     if TIME_COL not in frame.columns:
         raise ValueError(
-            f"{path} has no {TIME_COL!r} column; got {list(frame.columns)[:5]}"
+            f"Door telemetry requires a {TIME_COL!r} column."
         )
-    frame["_t"] = frame[TIME_COL].map(parse_datetime)
+    required = [CURRENT_COL, VOLTAGE_COL, EMF_COL, POSITION_COL, OPENING_COL, CLOSING_COL]
+    missing = [c for c in required if c not in frame]
+    if missing:
+        raise ValueError("Door telemetry is missing required columns: " + ", ".join(missing))
+    if frame.empty:
+        raise ValueError("The Door telemetry file contains no readings.")
+    try:
+        frame["_t"] = frame[TIME_COL].map(parse_datetime)
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise ValueError("Door timestamps must use the supplied year-month-day-hour-minute-second-millisecond format.") from exc
+    if not frame["_t"].is_monotonic_increasing or frame["_t"].duplicated().any():
+        raise ValueError("Door timestamps must be unique and in increasing order.")
+    for col in required:
+        frame[col] = pd.to_numeric(frame[col], errors="raise")
+    if not np.isfinite(frame[required].to_numpy(dtype=float)).all():
+        raise ValueError("Door telemetry contains missing or non-finite sensor values.")
+    if not frame[[OPENING_COL, CLOSING_COL]].isin([0, 1]).all().all():
+        raise ValueError("Door opening and closing flags must contain only 0 or 1.")
     return frame
 
 
@@ -99,14 +116,16 @@ def _operation(block: pd.DataFrame) -> str:
     Train. The Info Kit says operation is informational and need not be
     predicted (§2.1); we use it only to pick which threshold applies.
 
-    Ties and absences fall back to ``Close``, which is recorded rather than
-    silently assumed -- see the ``operation_inferred`` flag in the features.
+    Ties and absences are explicit: the fitted model's global threshold is
+    used, and the application shows an operation-ambiguity warning.
     """
     opening = int((block[OPENING_COL] == 1).sum())
     closing = int((block[CLOSING_COL] == 1).sum())
     if opening > closing:
         return "Open"
-    return "Close"
+    if closing > opening:
+        return "Close"
+    return "Ambiguous"
 
 
 def cycle_features(frame: pd.DataFrame, cycle_ids: pd.Series) -> pd.DataFrame:
@@ -131,6 +150,7 @@ def cycle_features(frame: pd.DataFrame, cycle_ids: pd.Series) -> pd.DataFrame:
                 "n_rows": len(block),
                 "duration_s": (end_t - start_t).total_seconds(),
                 "operation": _operation(block),
+                "operation_ambiguous": _operation(block) == "Ambiguous",
                 "current_sum": float(block[CURRENT_COL].sum()),
                 "current_mean": float(block[CURRENT_COL].mean()),
                 "current_max": float(block[CURRENT_COL].max()),

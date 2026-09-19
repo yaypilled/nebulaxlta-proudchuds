@@ -1,11 +1,10 @@
 # Door — Plan
 
-**Status: proposed, not yet implemented.** Written from the Info Kit and a
-read-only inspection of the data. Nothing has been fitted or submitted.
+**Status: implemented and integrated.** QH's fitted model and inference pipeline are used in the unified Streamlit app. The 2026-09-19 integration check reproduced 110 training boundaries exactly and detected 38 official test cycles (28 Normal, 10 Abnormal resistance; 18 Open, 20 Close).
 
 Authoritative source:
 `reference/03_References/Door/Door_Subsystem_Info_Kit.md`. Where it and the
-top-level spec disagree, the Info Kit wins.
+top-level specification disagree on submission requirements, the current top-level specification wins. The Info Kit defines the subsystem task and metric.
 
 ---
 
@@ -219,8 +218,7 @@ bar used for Rail. Expected outcome: it does not.
 ## 6. Acceptance criteria
 
 1. Gap-splitting reproduces all 110 Train cycles with zero boundary error.
-2. The same split is run on `Test.csv` and the cycle count reported; a count
-   far from ~35-40 is a finding that stops the run.
+2. The same split runs on `Test.csv`; row, cycle, label and operation counts are reported. Implausible giant or incomplete cycles require investigation. No expected cycle count is enforced.
 3. `door_iou_f1` in `src/common/metrics.py` reproduces the Info Kit's §4.2
    definition, verified on hand-built cases including: perfect match, wrong
    label with perfect overlap (must score 0), partial overlap, and a
@@ -230,8 +228,7 @@ bar used for Rail. Expected outcome: it does not.
 5. Thresholds differ across folds in the printed output, demonstrating in-fold
    fitting.
 6. `predict()` returns the exact three-column schema; the CLI is logic-free.
-7. Output passes a `validate_submission.py` door mode (to be added: three
-   columns, valid labels, `start_time < end_time`, no overlapping segments).
+7. Output passes a `validate_submission.py` Door mode (implemented: exactly three columns, valid labels, parseable timestamps, `start_time < end_time`, no overlapping segments, and no empty rows).
 8. Peak current (`cur_max`) is **not** used as a primary discriminator, and the
    write-up states why — it is below chance.
 
@@ -246,16 +243,13 @@ production stream, or the framing is aspirational. **This should be asked of
 the organisers**, because if the real held-out stream is sampled continuously,
 a gap-splitter fails completely.
 
-**7.2 — Test may be built differently from Train.** Unresolvable locally.
-Mitigated by AC-2's structural check before submission.
+**7.2 — Stream-format assumption.** The current Info Kit states that Test is built in the same way. The official test structural check passed with 38 cycles; this does not establish generalisation to unrelated streams.
 
 **7.3 — 30 abnormal cycles is a small sample.** A perfect within-operation AUC
 on 15 abnormal Opens and 15 abnormal Closes is encouraging, not conclusive. The
-rolling-origin worst fold of 0.857 is the more honest headline than the mean.
+reproduced rolling-origin minimum is 1.000 across five small folds. This is validation evidence, not a guaranteed test score.
 
-**7.4 — `Door Data Headers.md` not yet read in full.** The column semantics for
-`DCSR`/`DCSL`/`DLSR`/`DLSL` have not been used. If the simple approach
-underperforms on Test, those flags are the first place to look for a refinement.
+**7.4 — Header documentation reviewed.** Controller switch definitions were read during integration. The existing opening/closing flags are retained. Tied flags produce an explicit Ambiguous operation and use the committed global fallback threshold.
 
 **7.5 — Single door, single day.** The whole stream is 2023-07-05, 00:00 to
 01:10. Info Kit §1.2 warns that "data distributions differ among doors". The

@@ -55,7 +55,8 @@ __all__ = [
 
 from pathlib import Path
 
-from src.common.paths import REPO_ROOT
+# Inference must not resolve the training corpus at import time.
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # --- Seed (plan section 4.1). ONE definition site in the whole codebase. -----
 SEED: int = 20260918

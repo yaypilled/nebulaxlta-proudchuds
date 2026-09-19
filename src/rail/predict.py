@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from functools import lru_cache
 
 import joblib
 import numpy as np
@@ -50,6 +51,22 @@ SUBMISSION_COLUMNS = ["file_id", "prediction"]
 FALLBACK_LABEL = "Normal"
 
 
+@lru_cache(maxsize=1)
+def load_model():
+    return joblib.load(MODEL_PATH)
+
+
+def validate_input(path: Path) -> None:
+    """Validate even when the low-speed rule applies."""
+    data = pd.read_csv(path, dtype=np.float32)
+    if data.shape != (N_SAMPLES, N_COLUMNS):
+        raise ValueError(f"Expected {N_SAMPLES:,} readings and {N_COLUMNS} columns; received {data.shape}.")
+    if not np.isfinite(data.to_numpy()).all():
+        raise ValueError("Rail telemetry contains missing or non-finite sensor values.")
+    if not data.iloc[:, 0].isin([0, 1]).all():
+        raise ValueError("The first Rail column must be a binary speed signal (0 or 1).")
+
+
 def _resolve_inputs(input_path: Path) -> list[Path]:
     """A single CSV, or every CSV in a directory, in natural numeric order."""
     if input_path.is_dir():
@@ -67,8 +84,10 @@ def predict(input_path: Path) -> pd.DataFrame:
     """
     input_path = Path(input_path)
     paths = _resolve_inputs(input_path)
+    if not paths:
+        raise ValueError("No Rail CSV files were supplied.")
 
-    artefact = joblib.load(MODEL_PATH)
+    artefact = load_model()
     model = artefact["model"]
 
     rows: list[dict[str, str]] = []
@@ -77,6 +96,7 @@ def predict(input_path: Path) -> pd.DataFrame:
 
     for path in paths:
         try:
+            validate_input(path)
             # Steps 1-2: shape assertion happens inside extract_file; the speed
             # derivation reads column 1 only, so it is cheap enough to do first.
             v_mps, _ = derive_speed_for_file(path)
@@ -120,7 +140,12 @@ def predict(input_path: Path) -> pd.DataFrame:
         print(f"  low-speed: {name} v={v_mps:.4f} m/s", file=sys.stderr)
 
     frame = pd.DataFrame(rows, columns=SUBMISSION_COLUMNS)
-    return frame.astype({"file_id": "string", "prediction": "string"})
+    frame = frame.astype({"file_id": "string", "prediction": "string"})
+    frame.attrs["diagnostics"] = {
+        "low_speed_rule": [{"file_id": n, "speed_mps": v} for n, v in low_speed_fired],
+        "errors": [{"file_id": n, "detail": e} for n, e in fallbacks],
+    }
+    return frame
 
 
 def main() -> None:
