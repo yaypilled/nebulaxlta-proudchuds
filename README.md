@@ -4,9 +4,10 @@ One Streamlit app covering all four LTA × NebulaX PS3 subsystems: Door cycle
 detection, ACV fault localisation, Rail Corrugation classification and SHM
 cumulative-damage estimation.
 
-**Zero of our five leaderboard uploads were used.** Every number below comes
-from local validation, which meant the validation had to be worth trusting.
-That constraint shaped most of what follows.
+# Final model submission evaluation scores:
+<img width="1036" height="553" alt="image" src="https://github.com/user-attachments/assets/44363da7-83cd-4f04-9dfb-a0985d442ca3" />
+
+Scores mentioned anywhere below this are from local eval. 
 
 ## Run locally
 
