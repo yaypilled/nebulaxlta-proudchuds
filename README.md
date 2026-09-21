@@ -26,10 +26,9 @@ session and temporary uploads are deleted after processing.
 
 ## How we chose each model
 
-The short version: **three of the four subsystems are too small to justify a
-learned model, and we said so rather than fitting one anyway.**
+TLDR: **three of the four subsystems are too small to justify ML models so we just used chud small models**
 
-### Rail — the only subsystem with a real model, and the only one with a trap
+### Rail — the only subsystem with a real model,
 
 272 training files, 234 Normal against 14 Side I and 24 Side II.
 
